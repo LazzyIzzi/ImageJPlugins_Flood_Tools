@@ -210,7 +210,8 @@ public class Geodesic_Transform implements PlugInFilter, DialogListener
 							IJ.showStatus("Run " + dp.taskChoice +  " " + dp.destChoice + " " + dp.floodChoice+ " from " + dp.seedChoice);		
 							for(i=0;i<mySlicePts.length;i++)
 							{
-								oData2D = myStack.getPixels(mySlicePts[i].sliceNum);
+								if(myStack.getSize() > 1) oData2D = myStack.getPixels(mySlicePts[i].sliceNum);
+								else oData2D = myStack.getPixels(1);
 								
 								switch(dp.taskChoice)
 								{
@@ -261,7 +262,8 @@ public class Geodesic_Transform implements PlugInFilter, DialogListener
 							IJ.showStatus("Run " + dp.taskChoice +  " " + dp.destChoice + " " + dp.floodChoice+ " from " + dp.seedChoice);		
 							for(i=0;i<mySlicePts.length;i++)
 							{
-								oData2D = myStack.getPixels(mySlicePts[i].sliceNum);
+								if(myStack.getSize() > 1) oData2D = myStack.getPixels(mySlicePts[i].sliceNum);
+								else oData2D = myStack.getPixels(1);
 								switch(dp.taskChoice)
 								{
 								case "Geodesic Distance":
