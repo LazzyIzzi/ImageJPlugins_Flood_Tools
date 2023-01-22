@@ -94,7 +94,7 @@ public class Hybrid_Flood implements PlugInFilter
 		gd.addNumericField("Flood Minimum radius ", dp.floodMin, 3);
 		//gd.addNumericField("Flood Maximum pixel value", dp.floodMax, 3);
 		//gd.addNumericField("Connected voxel fill value:", dp.floodVal, 3);
-		gd.addHelp("https://lazzyizzi.github.io/FloodFill.html");
+		gd.addHelp("https://lazzyizzi.github.io/HybridFloodFill.html");
 		gd.showDialog();
 
 		if(gd.wasCanceled()) return null;
