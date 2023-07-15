@@ -13,7 +13,6 @@ import ij.plugin.filter.*;
 import ij.process.ImageConverter;
 import ij.process.ImageProcessor;
 
-//import jhd.DistanceMaps.libJ8.*;
 import jhd.FloodFill.ExactEuclideanMap;
 
 public class Exact_Euclidean implements PlugInFilter
@@ -25,6 +24,8 @@ public class Exact_Euclidean implements PlugInFilter
 	String[] destChoices3D = {"3D new Image","3D in Place","2D All Slices New Image","2D All Slices in Place", "2D Current Slice New Image"};
 	String[] destChoices2D = {"2D All Slices New Image","2D All Slices in Place"};
 	String[] destChoices = null;
+	Font myFont = new Font(Font.DIALOG, Font.BOLD, 12);
+	final Color myColor = new Color(240,230,190);//slightly darker than buff
 
 	//*********************************************************************************************
 
@@ -147,9 +148,8 @@ public class Exact_Euclidean implements PlugInFilter
 
 	//*********************************************************************************************
 
-	private DialogParams DoMyDialog() {
-
-		Font myFont = new Font(Font.DIALOG, Font.BOLD, 12);
+	private DialogParams DoMyDialog()
+	{
 
 		if(imp.getStackSize() == 1)
 		{
@@ -169,6 +169,7 @@ public class Exact_Euclidean implements PlugInFilter
 		gd.addCheckbox("Use Pixel Sizes", false);
 		gd.addMessage("Notes:\nIn-place calculation converts the binary image to 32-Bit.",myFont,Color.BLACK);
 		gd.addHelp("https://lazzyizzi.github.io/ExactEuclidean.html");
+		gd.setBackground(myColor);
 		gd.showDialog();
 
 		if(gd.wasCanceled()) return null;

@@ -1,31 +1,45 @@
 package Flood_Tools;
 
 
-import java.awt.Color;
-import java.awt.Font;
+//import java.awt.Color;
+//import java.awt.Font;
+import java.awt.*;
+//import java.io.*;
+import java.util.Arrays;
 
 import ij.*;
 import ij.process.*;
+import ij.text.TextPanel;
 import ij.gui.*;
 import ij.plugin.filter.*;
 import ij.measure.*;
 
-//import jhd.DistanceMaps.libJ8.*;
-//import jhd.DistanceMaps.libJ8.HybridFloodFill_V3.FloodReport;
-//import jhd.DistanceMaps.libJ8.HybridFloodFill_V3.PorosityReport;
-
 import jhd.FloodFill.HybridFloodFill;
 import jhd.FloodFill.HybridFloodFill.FloodReport;
-import jhd.FloodFill.HybridFloodFill.PorosityReport;
+//import jhd.FloodFill.HybridFloodFill.PorosityReport;
+import jhd.ImageJAddins.GenericDialogAddin;
+import jhd.ImageJAddins.GenericDialogAddin.NumericField;
 
-public class Hybrid_Flood_Search implements PlugInFilter
+public class Hybrid_Flood_Search implements PlugInFilter, DialogListener
 {
 	ImagePlus imp;
 	final static boolean doEDM = true;
 	final static boolean noEDM = false;
 	final static boolean doGDT = true;
 	final static boolean noGDT = false;
-	
+
+	HybridFloodFill hff = new HybridFloodFill();
+	FloodReport fldRpt = new FloodReport();
+	String[] conChoices = HybridFloodFill.GetConnectivityChoices();
+	Font myFont = new Font(Font.DIALOG, Font.BOLD, 12);
+	final Color myColor = new Color(240,230,190);//slightly darker than buff
+	String mapType;
+	double dryResVol;
+	double dryUnresVol;
+	double dryTotVol;
+	final String resultTitle = "Hybrid Flood Results";
+	final String plotTitle = "Hybrid Flood Plot";
+
 	//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 	class DialogParams
@@ -61,42 +75,57 @@ public class Hybrid_Flood_Search implements PlugInFilter
 		dp.neighbors = 26;
 		dp.saveImages=false;
 		dp.showBreakImage=false;
-		dp.showPlot=false;
+		dp.showPlot=true;
+
+		mapType = imp.getProp("MapType");
+
+		if(mapType==null || !mapType.equals("HybridPorosity") )
+		{
+			IJ.error("This plugin requires a Hybrid porosity image.");
+			return null;
+		}
+		else
+		{
+			dp.floodMin = Float.valueOf(imp.getProp("unresMinPhi"));
+			if(dp.floodMin==0) dp.floodMin = Float.valueOf(imp.getProp("resPoreMinR"));
+			dp.floodMax = Float.valueOf(imp.getProp("resPoreMaxR"));
+			dryResVol = Float.valueOf(imp.getProp("resPoreVol"));
+			dryUnresVol = Float.valueOf(imp.getProp("unresPoreVol"));
+			dryTotVol = dryResVol+dryUnresVol;
+		}
+
 		return dp;
 	}
 
 	//**********************************************************************************************
-
+	
+	NumericField floodDeltaNF;
+	
 	private DialogParams DoMyDialog(DialogParams dp)
 	{		
 
-		//dir = IJ.getDirectory("plugins");
-		//dir= dir.replace("\\","/");
-		//myURL = "file:///"+dir + "FloodFill/FloodFillHelp/FloodFill_FromTopSlice_3D.htm";
+		String	msg = "Hybrid Image Info:\n"
+				+ "Maximum Resolved Pore Radius = " + imp.getProp("resPoreMaxR")+"\n"
+				+ "Minimum Resolved Pore Radius = " + imp.getProp("resPoreMinR")+"\n"
+				+ "Maximum Unresolved Porosity = " + imp.getProp("unresMaxPhi")+"\n"
+				+ "Minimum Unresolved Porosity = " + imp.getProp("unresMinPhi");
 
-//		HybridFloodFill_V3 hff = new HybridFloodFill_V3();
-//		HybridFloodFill hff = new HybridFloodFill();
-		String[] conChoices = HybridFloodFill.GetConnectivityChoices();
-		
-		Font myFont = new Font(Font.DIALOG, Font.BOLD, 12);
-		
-		String msg = "This plugin requires a Porosity Image.\n"
-				+ "resolved open pores = 1 \n"
-				+ "unresolved porosity values 0<phi<1\n"
-				+ "Pixel height, width, depth must be > 1unit/pixel,\n"
-				+ "e.g 5um/pixel width, 7um/pixel height, 10um/pixel depth.";
-		
 		String unit = imp.getCalibration().getUnit();
-		
+
 		GenericDialog gd = new GenericDialog("Hybrid Flood Search");
+		GenericDialogAddin gda = new GenericDialogAddin();
 		gd.setInsets(0,0,0);
 		gd.addMessage(msg,myFont,Color.BLACK);
 		gd.addChoice("Connectivity",conChoices,dp.conChoice);
 		gd.addNumericField("Stop at Search delta("+unit+")", dp.floodInc, 2);
+		floodDeltaNF = gda.getNumericField(gd, null, "floodDelta");
+		
 		gd.addCheckbox("Save Images", dp.saveImages);
 		gd.addCheckbox("Show breakthrough Image", dp.showBreakImage);
 		gd.addCheckbox("Show Plot", dp.showPlot);
-		gd.addHelp("https://lazzyizzi.github.io/HybridFloodSearch.html");
+		gd.addHelp("https://lazzyizzi.github.io/HybridFloodSearchScan.html");
+		gd.addDialogListener(this);
+		gd.setBackground(myColor);
 		gd.showDialog();
 
 		if(gd.wasCanceled()) return null;
@@ -117,280 +146,365 @@ public class Hybrid_Flood_Search implements PlugInFilter
 		return dp;
 	}
 
-	//**********************************************************************************************
-
-	private boolean ValidateParams(DialogParams dp)
+	//**********************************************************************************************	
+	@Override
+	public boolean dialogItemChanged(GenericDialog gd, AWTEvent e)
 	{
-		boolean result = true;
-		if(dp.neighbors != 6 && dp.neighbors != 18 && dp.neighbors != 26)
+		boolean dialogOK = true;
+		
+		if(e!=null)
 		{
-			IJ.showMessage("Connectivity  must be \"Face\"(6),\"Face & Edge\"(18),\"Face, Edge &Corners\"(26)");
-			result = false;
+			Object src = e.getSource();
+			if(src instanceof TextField)
+			{
+				TextField tf = (TextField)src;
+				String name = tf.getName();
+				double delta = floodDeltaNF.getNumber();
+				switch(name)
+				{
+				case "floodDelta":
+					if(Double.isNaN(delta) || delta <=0)
+					{
+						floodDeltaNF.getNumericField().setBackground(Color.red);
+						dialogOK = false;
+					}
+					else
+					{
+						floodDeltaNF.getNumericField().setBackground(Color.white);
+						dialogOK = true;
+					}
+					break;
+				}				
+			}
 		}
-		return result;
+		return dialogOK;
 	}
-
+	
 	//**********************************************************************************************	
 
 	public void run(ImageProcessor ip)
 	{
 		DialogParams dp = GetDefaultParams();
-		
-//		HybridFloodFill_V3 hff = new HybridFloodFill_V3();
-		HybridFloodFill hff = new HybridFloodFill();
-		FloodReport fldRpt = new FloodReport();
+
 		String dir=null, basename=null,fileName=null;
 		ImagePlus dupImp;
-		Object[] oImageArr;
+		Object[] oDupArr;
 		int w = imp.getStack().getWidth();
 		int h = imp.getStack().getHeight();
 		int d = imp.getStack().getSize();
-		
-		
+
 		dp = DoMyDialog(dp);
+
 		if(dp!=null)
 		{
-			if(ValidateParams(dp))
+			basename = imp.getTitle();
+			int loc = basename.lastIndexOf(".");
+			basename = basename.substring(0, loc) + "_";
+			if(dp.saveImages) dir = IJ.getDirectory("Choose a Directory");
+
+			Calibration cal = imp.getCalibration();
+			double pw = cal.pixelWidth;
+			double ph = cal.pixelHeight;
+			double pd = cal.pixelDepth;
+			String pu = cal.getUnit();
+
+			IJ.showStatus("Testing Connectivity Limits");
+			dupImp = imp.duplicate();
+			oDupArr = dupImp.getStack().getImageArray();
+
+			fldRpt = hff.hybridFloodFill(oDupArr,w,h,d,pw,ph,pd,pu,dp.floodMin, dp.neighbors,noEDM,doGDT);
+
+			dupImp.close();
+			boolean floodMinTest = fldRpt.floodStatistics.contact;
+			showFloodResults(dp,fldRpt,dp.floodMin,"Not Saved");
+
+			dupImp =imp.duplicate();
+			oDupArr = dupImp.getStack().getImageArray();
+			double testLowerLimit = dp.floodMax -.1f;
+
+			fldRpt = hff.hybridFloodFill(oDupArr,w,h,d,pw,ph,pd,pu,testLowerLimit, dp.neighbors,noEDM,doGDT);
+
+			dupImp.close();
+			boolean floodMaxTest = fldRpt.floodStatistics.contact;
+			showFloodResults(dp,fldRpt,testLowerLimit,"Not Saved");
+
+			if(floodMinTest == false || floodMaxTest==true)
 			{
-				basename = imp.getTitle();
-				int loc = basename.lastIndexOf(".");
-				basename = basename.substring(0, loc) + "_";
-				if(dp.saveImages) dir = IJ.getDirectory("Choose a Directory");
- 				
-				Calibration cal = imp.getCalibration();
-				double pw = cal.pixelWidth;
-				double ph = cal.pixelHeight;
-				double pd = cal.pixelDepth;
-				String pu = cal.getUnit();
-				
-				
-				//convert porosity map to a hybrid map
-				ImagePlus hybridImp = imp.duplicate();									
-				Object[] oHybridArr = hybridImp.getStack().getImageArray();
-				
-				PorosityReport phiRpt = hff.characterize(oHybridArr, w, h, d, pw, ph, pd);
-				ResultsTable dryResults;
-				
-				dryResults = ResultsTable.getResultsTable("Dry Results");		
-				if(dryResults == null) dryResults = new ResultsTable();
-				dryResults.setPrecision(4);
-				dryResults.incrementCounter();
-				dryResults.addValue("Resolved Pore Volume "+pu+(char)0x0b3,phiRpt.resolvedVolume);
-				dryResults.addValue("Unresolved Pore Volume "+pu+(char)0x0b3,phiRpt.unresolvedVolume);
-				dryResults.addValue("Tot Pore Volume "+pu+(char)0x0b3,phiRpt.resolvedVolume + phiRpt.unresolvedVolume);
-				
-				dryResults.addValue("Resolved "+(char)0x3c6+"%",phiRpt.resolvedPorosity*100);	
-				dryResults.addValue("Unresolved "+(char)0x3c6+"%",phiRpt.unresolvedPorosity*100);	
-				dryResults.addValue("Tot "+(char)0x3c6+"%",phiRpt.totalPorosity*100);
-				dryResults.show("Dry Results");
-				
-				//this converts the phi map to a hybrid map with EDM in the resolved pores
-				//The EDM will not be needed again so we call hybridFloodFill with noEDM
-				hff.phiMapToHybridMap(oHybridArr,w,h,d,pw,ph,pd);
-							
-				dp.floodMax = Float.MIN_VALUE;
-				dp.floodMin = Float.MAX_VALUE;
-				float[] slice;
-				for(int i = 0; i< d;i++)
-				{
-					slice= (float[]) oHybridArr[i];
-					for(int k = 0; k< slice.length;k++)
-					{
-						if(slice[k] > dp.floodMax) dp.floodMax = slice[k];
-						if(slice[k] < dp.floodMin && slice[k] > 0) dp.floodMin = slice[k];
-					}
-				}
-				
-				
-				IJ.showStatus("Testing Connectivity Limits");
-				dupImp = hybridImp.duplicate();
-				oImageArr = dupImp.getStack().getImageArray();
-				
-				fldRpt = hff.hybridFloodFill(oImageArr,w,h,d,pw,ph,pd,pu,dp.floodMin, dp.neighbors,noEDM,doGDT);
-				
-				dupImp.close();
-				boolean floodMinTest = fldRpt.floodStatistics.contact;
-				showFloodResults(dp,fldRpt,dp.floodMin,"Not Saved");
-				
-				dupImp = hybridImp.duplicate();
-				oImageArr = dupImp.getStack().getImageArray();
-				double testLowerLimit = dp.floodMax -.1f;
-				
-				fldRpt = hff.hybridFloodFill(oImageArr,w,h,d,pw,ph,pd,pu,testLowerLimit, dp.neighbors,noEDM,doGDT);
-				
-				dupImp.close();
-				boolean floodMaxTest = fldRpt.floodStatistics.contact;
-				showFloodResults(dp,fldRpt,testLowerLimit,"Not Saved");
-				
-				if(floodMinTest == false || floodMaxTest==true)
-				{
-					IJ.error("Volume connectivity not within test range");
-					return;
-				}
-				//end verify that the volume is connected at floodMin and disconnected at floodMax
-				
-								
-				else //Bisection search for floodMin at breakthrough 
-				{
-					IJ.showStatus("Bisection Search");
-					//A flood always has the floodMax, the largest pore size, as one limit.
-					//We want to find the largest value of testLowerLimit that allows the flood to reach the back slice
-					
-					//Our first guess is at the midpoint
-					double lowerLimit	= dp.floodMin;
-					double upperLimit	= dp.floodMax;
-					testLowerLimit	= (upperLimit+lowerLimit)/2.0;
-					
-					//We have already determined that the flood connects at floodMin
-					//so we set our initial solution to that value.
-					double brkMin = lowerLimit;
-					boolean done = false;
-					
-					while(done == false)
-					{
-						dupImp = hybridImp.duplicate();
-						oImageArr = dupImp.getStack().getImageArray();
-						
-						fldRpt = hff.hybridFloodFill(oImageArr,w,h,d,pw,ph,pd,pu,testLowerLimit, dp.neighbors,noEDM,doGDT);
-						
-						if(dp.saveImages)
-						{
-							fileName= basename + IJ.d2s((double)testLowerLimit,4);
-							IJ.saveAs(dupImp, "Tiff", dir+fileName+".tif");
-							IJ.showStatus("Bisection Search");
-						}
-						dupImp.close();
+				IJ.error("Volume connectivity not within test range");
+				return;
+			}				
 
-						showFloodResults(dp,fldRpt,testLowerLimit,fileName);
+			else //Bisection search for floodMin at breakthrough 
+			{
+				IJ.showStatus("Bisection Search");
+				//A flood always has the floodMax, the largest pore size, as one limit.
+				//We want to find the largest value of testLowerLimit that allows the flood to reach the back slice
 
+				//Our first guess is at the midpoint
+				double lowerLimit	= dp.floodMin;
+				double upperLimit	= dp.floodMax;
+				testLowerLimit	= (upperLimit+lowerLimit)/2.0;
 
-						if(fldRpt.floodStatistics.contact)
-						{
-							lowerLimit = testLowerLimit;
-							if(testLowerLimit>brkMin) brkMin =testLowerLimit;
-						}
-						else
-						{
-							upperLimit = testLowerLimit;
-						}
-						
-						testLowerLimit	= (upperLimit+lowerLimit)/2.0; 						 
-						if(upperLimit-lowerLimit < dp.floodInc) done = true;						
-					}
-					
-					//Recalculate the breakthrough image
-					dupImp = hybridImp.duplicate();
-					oImageArr = dupImp.getStack().getImageArray();
-					fldRpt = hff.hybridFloodFill(oImageArr,w,h,d,pw,ph,pd,pu,brkMin, dp.neighbors,noEDM,doGDT);
-					showFloodResults(dp,fldRpt,brkMin,fileName);
-					
-					//save the breakthrough image
+				//We have already determined that the flood connects at floodMin
+				//so we set our initial solution to that value.
+				double brkMin = lowerLimit;
+				boolean done = false;
+
+				while(done == false)
+				{
+					dupImp = imp.duplicate();
+					oDupArr = dupImp.getStack().getImageArray();
+
+					fldRpt = hff.hybridFloodFill(oDupArr,w,h,d,pw,ph,pd,pu,testLowerLimit, dp.neighbors,noEDM,doGDT);
+
 					if(dp.saveImages)
 					{
 						fileName= basename + IJ.d2s((double)testLowerLimit,4);
-						IJ.saveAs(dupImp, "Tiff", dir+fileName+"Brk.tif");
+						IJ.saveAs(dupImp, "Tiff", dir+fileName+".tif");
+						IJ.showStatus("Bisection Search");
 					}
-					//display the breakthrough image
-					if(dp.showBreakImage)
-					{
-						fileName= basename + IJ.d2s((double)testLowerLimit,4);
-						dupImp.setTitle(fileName+"Brk.tif");
-						dupImp.show();
-						//Re-scale the display between the min and max distance of the entire stack
-						float fmin=Float.MAX_VALUE,fmax=Float.MIN_VALUE;
-						float val;				
-						for(int k=0;k<d;k++)
-						{
-							float[] fData= (float[])oImageArr[k];
-							for(int j=0;j<fData.length;j++)
-							{
-								val = fData[j];
-								if(val< fmin) fmin=val;
-								else if(val>fmax) fmax=val;								
-							}
-						}				
-						dupImp.setDisplayRange(fmin, fmax);
-						IJ.run("Fire");
-					}
-					
-					if(dp.showPlot)
-					{
-						ResultsTable rt;						
-						rt = ResultsTable.getResultsTable("Flood Results");
-						String unit = imp.getCalibration().getXUnit();
+					dupImp.close();
 
-						if(rt!=null)
-						{
-							double[] minR = rt.getColumn("Min R "+unit);
-							double[] fldCnt = rt.getColumn("Tot Flood "+unit+(char)0x0b3);
-							Plot plot = new Plot("Flood Results","Min R "+unit,"Tot Flood "+unit+(char)0x0b3);
-							plot.add("circle", minR, fldCnt);
-							double[] brkR = new double[1];
-							double[] brkCnt = new double[1];
-							brkR[0] = rt.getValue("Min R "+unit, rt.getCounter()-1);
-							brkCnt[0] = rt.getValue("Tot Flood "+unit+(char)0x0b3, rt.getCounter()-1);
-							plot.add("circle", brkR, brkCnt);
-							plot.setStyle(1,"red,red,1,circle");
-							plot.show();
-						}						
+					showFloodResults(dp,fldRpt,testLowerLimit,fileName);
+
+
+					if(fldRpt.floodStatistics.contact)
+					{
+						lowerLimit = testLowerLimit;
+						if(testLowerLimit>brkMin) brkMin =testLowerLimit;
 					}
- 				}
+					else
+					{
+						upperLimit = testLowerLimit;
+					}
+
+					testLowerLimit	= (upperLimit+lowerLimit)/2.0; 						 
+					if(upperLimit-lowerLimit < dp.floodInc) done = true;						
+				}
+
+				//Recalculate the breakthrough image
+				dupImp = imp.duplicate();
+				oDupArr = dupImp.getStack().getImageArray();
+				fldRpt = hff.hybridFloodFill(oDupArr,w,h,d,pw,ph,pd,pu,brkMin, dp.neighbors,noEDM,doGDT);
+				showFloodResults(dp,fldRpt,brkMin,fileName);
+
+				//save the breakthrough image
+				if(dp.saveImages)
+				{
+					fileName= basename + IJ.d2s((double)testLowerLimit,4);
+					IJ.saveAs(dupImp, "Tiff", dir+fileName+"Brk.tif");
+				}
+				//display the breakthrough image
+				if(dp.showBreakImage)
+				{
+					fileName= basename + IJ.d2s((double)testLowerLimit,4);
+					dupImp.setTitle(fileName+"Brk.tif");
+					dupImp.show();
+					//Re-scale the display between the min and max distance of the entire stack
+					float fmin=Float.MAX_VALUE,fmax=Float.MIN_VALUE;
+					float val;				
+					for(int k=0;k<d;k++)
+					{
+						float[] fData= (float[])oDupArr[k];
+						for(int j=0;j<fData.length;j++)
+						{
+							val = fData[j];
+							if(val< fmin) fmin=val;
+							else if(val>fmax) fmax=val;								
+						}
+					}				
+					dupImp.setDisplayRange(fmin, fmax);
+					IJ.run("Fire");
+				}
+
+				if(dp.showPlot)
+				{
+					Plot searchPlot = prepSearchPlot();
+					if(searchPlot!= null) showUpdatePlot(searchPlot);
+				}
 			}
 		}
 	}
+	
+	//***************************************************************************************
+	
+	private void showUpdatePlot(Plot plot)
+	{
+		PlotWindow plotWin;
+		plotWin = (PlotWindow)WindowManager.getWindow(plot.getTitle());
+		if(plotWin==null)
+		{
+			plot.show();
+		}
+		else plotWin.drawPlot(plot);		
+	}	
+	
+	//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+	private Plot prepSearchPlot()
+	{
+
+		Plot plot = null;
+		ResultsTable rt;						
+		rt = ResultsTable.getResultsTable(resultTitle);
+		if(rt!=null)
+		{
+			//Scan does not identify a unique "Breakthrough" radius
+			//Differentiate flood radius contact by drawing a black
+			//line outside the flood point
+			String unit = imp.getCalibration().getXUnit();			
+			rt.sort("Min R "+unit);
+			//hack to force redraw after sort
+			IJ.renameResults(resultTitle, "Temp");
+			IJ.renameResults("Temp",resultTitle);			
+	
+			//All of this min max stuff because plot.setLimitsToFit(false) or true; does not work!!
+			double[] minR = rt.getColumn("Min R "+unit);
+			double[] fldCnt = rt.getColumn("Tot Flood "+unit+(char)0x0b3);
+			double[] unResFldCnt = rt.getColumn("Unres Flood "+unit+(char)0x0b3);
+			double[] resFldCnt = rt.getColumn("Res Flood "+unit+(char)0x0b3);
+
+			String[] contact = rt.getColumnAsStrings("Breakthrough");
+			int firstContact=0;
+			boolean foundContact = false;
+			for(int i=0;i<contact.length;i++)
+			{
+				if(contact[i].equals("False"))
+					{
+						firstContact=i;
+						foundContact=true;
+						break;
+					}
+			}
+			if(foundContact==false) firstContact = contact.length-1;
+			
+			double[] minRbrk = Arrays.copyOfRange(minR,0,firstContact);
+			double[] minR2 = Arrays.copyOfRange(minR,firstContact,minR.length);
+			
+			double[] fldCntBrk = Arrays.copyOfRange(fldCnt,0,firstContact);
+			double[] fldCnt2 = Arrays.copyOfRange(fldCnt,firstContact,fldCnt.length);
+			
+			double[] unResFldCntBrk = Arrays.copyOfRange(unResFldCnt,0,firstContact);
+			double[] unResFldCnt2 = Arrays.copyOfRange(unResFldCnt,firstContact,unResFldCnt.length);
+			
+			double[] resFldCntBrk = Arrays.copyOfRange(resFldCnt,0,firstContact);
+			double[] resFldCnt2 = Arrays.copyOfRange(resFldCnt,firstContact,resFldCnt.length);
+
+			plot = new Plot(plotTitle,"Min R "+unit,"Tot Flood "+unit+(char)0x0b3);
+			plot.add("line", minRbrk, fldCntBrk);
+			plot.setStyle(0,"red,red,1,line");
+			plot.setLabel(0, "Tot Flood Brk "+unit+(char)0x0b3 );
+			
+			plot.add("line", minR2, fldCnt2);
+			plot.setStyle(1,"black,black,1,line");
+			plot.setLabel(1, "Tot Flood "+unit+(char)0x0b3 );
+
+			plot.add("circle", minRbrk, unResFldCntBrk);
+			plot.setStyle(2,"red,blue,1,circle");
+			plot.setLabel(2, "Unresolved Brk "+unit+(char)0x0b3 );
+			
+			plot.add("circle", minR2, unResFldCnt2);
+			plot.setStyle(3,"black,blue,1,circle");
+			plot.setLabel(3, "Unresolved "+unit+(char)0x0b3 );
+
+			plot.add("circle", minRbrk, resFldCntBrk);
+			plot.setStyle(4,"red,green,1,circle");
+			plot.setLabel(4, "Resolved Brk "+unit+(char)0x0b3 );
+						
+			plot.add("circle", minR2, resFldCnt2);
+			plot.setStyle(5,"black,green,1,circle");
+			plot.setLabel(5, "Resolved "+unit+(char)0x0b3 );
+
+			plot.setColor(Color.black);
+			plot.setLineWidth(1);
+
+			plot.addLegend("", "top-right");
+			plot.setLimitsToFit(true);
+		}
+			return plot;
+	}
+
+//	private Plot prepSearchPlot()
+//	{
+//		Plot searchPlot = null;
+//		ResultsTable rt;						
+//		rt = ResultsTable.getResultsTable(resultTitle);
+//		String unit = imp.getCalibration().getXUnit();
+//		double[] brkR = new double[1];
+//		double[] brkCnt = new double[1];
+//		brkR[0] = rt.getValue("Min R "+unit, rt.getCounter()-1);
+//		brkCnt[0] = rt.getValue("Tot Flood "+unit+(char)0x0b3, rt.getCounter()-1);
+//		rt.sort("Min R "+unit);
+//		//hack to force redraw after sort
+//		IJ.renameResults(resultTitle, "Temp");
+//		IJ.renameResults("Temp",resultTitle);
+//		if(rt!=null)
+//		{
+//			double[] minR = rt.getColumn("Min R "+unit);
+//			double[] fldCnt = rt.getColumn("Tot Flood "+unit+(char)0x0b3);
+//			double[] unResFldCnt = rt.getColumn("Unres Flood "+unit+(char)0x0b3);
+//			double[] resFldCnt = rt.getColumn("Res Flood "+unit+(char)0x0b3);
+//
+//			searchPlot = new Plot(plotTitle,"Min R "+unit,"Flood Volume"+unit+(char)0x0b3);
+//			searchPlot.add("circle", minR, fldCnt);
+//			searchPlot.setStyle(0,"black,black,1,circle");
+//			searchPlot.setLabel(0, "Tot Flood "+unit+(char)0x0b3 );
+//
+//			searchPlot.add("circle", minR, unResFldCnt);
+//			searchPlot.setStyle(1,"black,blue,1,circle");
+//			searchPlot.setLabel(1, "Unresolved "+unit+(char)0x0b3 );
+//
+//			searchPlot.add("circle", minR, resFldCnt);
+//			searchPlot.setStyle(2,"black,green,1,circle");
+//			searchPlot.setLabel(2, "Resolved "+unit+(char)0x0b3 );
+//
+//			searchPlot.add("circle", brkR, brkCnt);
+//			searchPlot.setStyle(3,"red,red,1,circle");
+//			searchPlot.setLabel(3, "Breakthough" );
+//
+//			searchPlot.setColor(Color.black);
+//			searchPlot.setLineWidth(1);
+//			searchPlot.addLegend("", "top-right");
+//		}
+//		return searchPlot;
+//	}
 
 	//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-//	private void showFloodResults(DialogParams dp, HybridFloodFill_V3.FloodReport fldRpt, double testMin, String fileName)
 	private void showFloodResults(DialogParams dp, FloodReport fldRpt, double testMin, String fileName)
 	{
 		ResultsTable floodResults;					
-		
+
 		String unit = imp.getCalibration().getXUnit();
-		
-		floodResults = ResultsTable.getResultsTable("Flood Results");		
+
+		floodResults = ResultsTable.getResultsTable(resultTitle);		
 		if(floodResults == null) floodResults = new ResultsTable();
 		floodResults.setPrecision(5);
 		floodResults.incrementCounter();
 		if(dp.saveImages)floodResults.addValue("File Name ",fileName);		
-		
+
 		floodResults.addValue("Min R "+unit,testMin);
-		//rt.addValue("Max R "+unit,dp.floodMax);
-		//rt.addValue("Max Radius "+unit,dp.floodMax*pixelSize);
-		//rt.addValue("Flood Val",dp.floodVal);
 		floodResults.addValue("Connectivity", dp.neighbors);
 		if(fldRpt.floodStatistics.contact == true) floodResults.addValue("Breakthrough","True");
 		else floodResults.addValue("Breakthrough","False");
-		
-//		rt.addValue("Res Flood Voxels",fldRpt.afterFlood.resolvedVoxelCount);
-//		rt.addValue("Unres Flood Voxels",fldRpt.afterFlood.unresolvedVoxelCount);
-//		rt.addValue("Tot Flood Voxels",fldRpt.afterFlood.resolvedVoxelCount+fldRpt.afterFlood.unresolvedVoxelCount);
 
+		floodResults.addValue("Res Flood "+unit+(char)0x0b3,fldRpt.afterFlood.resolvedPoreVolume);
+		floodResults.addValue("Unres Flood "+unit+(char)0x0b3,fldRpt.afterFlood.unresolvedPoreVolume);
+		floodResults.addValue("Tot Flood "+unit+(char)0x0b3,fldRpt.afterFlood.resolvedPoreVolume+fldRpt.afterFlood.unresolvedPoreVolume);
 
-		floodResults.addValue("Res Flood "+unit+(char)0x0b3,fldRpt.afterFlood.resolvedVolume);
-		floodResults.addValue("Unres Flood "+unit+(char)0x0b3,fldRpt.afterFlood.unresolvedVolume);
-		floodResults.addValue("Tot Flood "+unit+(char)0x0b3,fldRpt.afterFlood.resolvedVolume+fldRpt.afterFlood.unresolvedVolume);
-		
-		ResultsTable dryResults = ResultsTable.getResultsTable("Dry Results");
-
-		double dryResVol = dryResults.getValue("Resolved Pore Volume "+unit+(char)0x0b3, 0);
-		double dryUnresVol = dryResults.getValue("Unresolved Pore Volume "+unit+(char)0x0b3, 0);
-		double dryTotVol = dryResults.getValue("Tot Pore Volume "+unit+(char)0x0b3, 0);
-		
-		floodResults.addValue("Res Sat% ",fldRpt.afterFlood.resolvedVolume/dryResVol);
-		floodResults.addValue("Unres Sat% ",fldRpt.afterFlood.unresolvedVolume/dryUnresVol);
-		floodResults.addValue("Tot Sat% ",(fldRpt.afterFlood.resolvedVolume+fldRpt.afterFlood.unresolvedVolume)/dryTotVol);
+		floodResults.addValue("Res Sat% ",fldRpt.afterFlood.resolvedPoreVolume/dryResVol);
+		floodResults.addValue("Unres Sat% ",fldRpt.afterFlood.unresolvedPoreVolume/dryUnresVol);
+		floodResults.addValue("Tot Sat% ",(fldRpt.afterFlood.resolvedPoreVolume+fldRpt.afterFlood.unresolvedPoreVolume)/dryTotVol);
 
 		floodResults.addValue("Cycles at Contact",fldRpt.floodStatistics.contactCycles);
 		floodResults.addValue("Tot flood Cycles",fldRpt.floodStatistics.totalCycles);
 		floodResults.addValue("Tort Mean", fldRpt.floodStatistics.meanTort);
 		floodResults.addValue("Tort StdDev", fldRpt.floodStatistics.stdDevTort);
-		
-		//rt.addValue("Res Flood "+voxelUnit,wholeFloodVol);
-		//rt.addValue("Tot Flood "+voxelUnit,totFloodVol );
-		floodResults.show("Flood Results");
+
+		floodResults.show(resultTitle);
+		Window win = WindowManager.getWindow(resultTitle);
+		TextPanel txtPnl = (TextPanel)win.getComponent(0);
+		txtPnl.showRow(txtPnl.getLineCount());
 	}
-
-
 }
 

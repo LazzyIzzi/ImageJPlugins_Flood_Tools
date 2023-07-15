@@ -18,7 +18,7 @@ import ij.process.ImageProcessor;
 
 //import jhd.FloodFill.Offsets.PointDesc;
 
-public class Get_Points_And_Values implements PlugInFilter {
+public class Get_Roi_Values implements PlugInFilter {
 
 	//*********************************************************************************************
 	class Point3D

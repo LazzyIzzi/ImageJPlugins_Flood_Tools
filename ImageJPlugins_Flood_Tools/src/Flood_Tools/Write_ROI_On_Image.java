@@ -1,5 +1,8 @@
 package Flood_Tools;
 
+import java.awt.Color;
+import java.awt.Font;
+
 /* The imageJ "Draw" plugin has most of this plugin's capability to draw ROIs on an image.  But it does not
  * allow drawing using floating point numbers, severely limiting pixel value choices.
  * Also, the points in an ROI polygon are not necessarily touching.
@@ -29,17 +32,11 @@ public class Write_ROI_On_Image implements PlugIn
 			this.y = y;
 			this.z = z;
 		}
-//		public Point3D(int x, int y, int z, double val)
-//		{
-//			super();
-//			this.x = x;
-//			this.y = y;
-//			this.z = z;
-//			this.val = val;
-//		}
 		int x,y,z;
-//		double val;
 	}
+	
+	Font myFont = new Font(Font.DIALOG, Font.BOLD, 12);
+	final Color myColor = new Color(240,230,190);//slightly darker than buff
 	
 	//***********************************************************************************************************************
 		
@@ -47,8 +44,11 @@ public class Write_ROI_On_Image implements PlugIn
 	public void run(String arg)
 	{
 		GenericDialog gd = new GenericDialog("Draw Roi on image");
-		gd.addNumericField("Set Roi boundry to:", 128);
-		gd.addCheckbox("Write in all slices", false);
+		gd.addMessage("Draws the roi in the image data\n"
+				+ "by setting the roi pixels to a new value.");
+		gd.addNumericField("Set Roi pixel values to:", 128);
+		gd.addCheckbox("Draw entire Roi in every slice", false);
+		gd.setBackground(myColor);
 		gd.showDialog();
 
 		if(gd.wasOKed())
@@ -174,7 +174,7 @@ public class Write_ROI_On_Image implements PlugIn
 	 * @param x2 H, height, i position of  line End
 	 * @param y2 Y, height, j position of  line End
 	 * @param z2 Z, depth, k position of  line End
-	 * @return An ArrayList of Point3D coordinates and values along a pixellated straight line between x1,y1,z1 and x2,y2,z2
+	 * @return An ArrayList of Point3D coordinates and values along a pixelated straight line between x1,y1,z1 and x2,y2,z2
 	 */
 	private ArrayList<Point3D> bresenham3D( int imgWidth, int imgHeight, int imgDepth, int x1, int y1, int z1, int x2, int y2, int z2)
 	{

@@ -26,17 +26,22 @@ import java.util.Properties;
 
 
 import jhd.FloodFill.Offsets.PointDesc;
+import jhd.ImageJAddins.GenericDialogAddin;
+import jhd.ImageJAddins.GenericDialogAddin.CheckboxField;
 import jhd.FloodFill.GDT3D;
 
 /**
  * Plugin to draw in overlay the shortest path between the origin and a point in a 2D geodesic distance image.
  * @author John H Dunsmuir
  */
-public class GeodesicPath_3D implements PlugInFilter {
+public class GeodesicPath_3D implements PlugInFilter, DialogListener {
 
 	ImagePlus		imp;
 	ImageProcessor	ip;
 	PointDesc[]		offsetPts;
+	CheckboxField addToRoiCBF, showPathsCBF;
+	Font myFont = new Font(Font.DIALOG, Font.BOLD, 12);
+	final Color myColor = new Color(240,230,190);//slightly darker than buff
 
 	//***********************************************************************************************
 
@@ -46,20 +51,17 @@ public class GeodesicPath_3D implements PlugInFilter {
 		this.imp = imp;
 		return DOES_32+NO_UNDO;
 	}
-	
+
 	//***********************************************************************************************
 
-	@Override
-	public void run(ImageProcessor ip)
+	private boolean validateImage()
 	{
-
-		this.ip = ip;
-
+		boolean imageOK=true;
 		Properties props = imp.getImageProperties();
 		if(props==null)
 		{
 			IJ.showMessage("Missing Image Properties","Please select a 3D Geodesic Transform Image");
-			return;
+			imageOK=false;
 		}
 		else
 		{
@@ -70,13 +72,13 @@ public class GeodesicPath_3D implements PlugInFilter {
 				if(source.indexOf("3D")==-1 || type.indexOf("Distance")==-1)
 				{
 					IJ.showMessage("Incorrect Image Properties","Please select a 3D Geodesic Transform Image");
-					return;
+					imageOK=false;
 				}
 			}
 			else
 			{
 				IJ.showMessage("Missing Image Properties","Please select a 3D Geodesic Transform Image");
-				return;
+				imageOK=false;
 			}
 		}
 
@@ -84,33 +86,82 @@ public class GeodesicPath_3D implements PlugInFilter {
 		if(roi==null  || roi.getType() != Roi.POINT)
 		{
 			IJ.showMessage("Select a one or more points in the GDT area using the multi-Point ROI tool");
-			return;
+			imageOK=false;
 		}
-		
-		Font myFont = new Font(Font.DIALOG, Font.BOLD, 12);
+
+		return imageOK;
+	}
+
+	//***********************************************************************************************
+
+	@Override
+	public void run(ImageProcessor ip)
+	{
+
+		this.ip = ip;
+
+		if(!validateImage()) return;
+
 		GenericDialog gd = new GenericDialog("Geodesic Path 3D");
+		GenericDialogAddin gda = new GenericDialogAddin();
 		gd.addMessage("Find the shortest path from a point\n"
 				+ "in a 3D GDT image to the GDT origin.",myFont,Color.BLACK);
-		gd.addCheckbox("Show Path(s) in New Blank Image", false);
+		gd.addCheckbox("Show Path(s) in New 8 bit Image", false);
+		showPathsCBF = gda.getCheckboxField(gd, "showPaths");
 		gd.setInsets(0, 20, 0);
 		gd.addMessage("(Scroll through the Path Image or use\n"
 				+ "Image->Stacks->3D Project to view.)");
 		gd.setInsets(20, 20, 0);
-		gd.addCheckbox("Write Path(s) to Roi Manager", true);
+		gd.addCheckbox("Add Path(s) to Roi Manager", true);
+		addToRoiCBF = gda.getCheckboxField(gd, "addToRoi");
+		gd.setBackground(myColor);
+		gd.addDialogListener(this);
 		gd.showDialog();
-		
-		if(gd.wasCanceled()) return;
-		
-		boolean showPaths = gd.getNextBoolean();
-		boolean useRoiMgr =  gd.getNextBoolean();
-		
 
-		int width = imp.getWidth();
-		int height = imp.getHeight();
-		int depth = imp.getNSlices();
+		if(gd.wasCanceled()) return;		
+		boolean showPaths = gd.getNextBoolean();
+		boolean addToRoiMgr =  gd.getNextBoolean();
+
+		ArrayList<PointDesc> seedPts = getSeedPts(imp);
+
+		if(!seedPts.isEmpty())
+		{
+			ArrayList<PointDesc>[] geoPaths3D = getGeoPaths3D(seedPts);
+			if(addToRoiMgr)addToRoiManager(geoPaths3D);	
+			if(showPaths)showPaths(geoPaths3D);	
+		}
+
+	}
+
+	//***********************************************************************************************
+	@Override
+	public boolean dialogItemChanged(GenericDialog gd, AWTEvent e)
+	{
+		boolean dialogOK = true;
+		if(e!=null)
+		{
+			Object src = e.getSource();
+			if(src instanceof Checkbox)
+			{
+				//at least one checkbox must be true
+				if(addToRoiCBF.getCheckBox().getState()==false &&
+						showPathsCBF.getCheckBox().getState()==false)
+				{
+					dialogOK = false;
+				}
+
+			}	
+		}
+		return dialogOK;
+	}
+	
+	//***********************************************************************************************
+
+	private ArrayList<PointDesc> getSeedPts(ImagePlus imp)
+	{
+		ArrayList<PointDesc> seedPts = new ArrayList<PointDesc>();
 		ImageStack stack = imp.getStack();
-		Object[] data = stack.getImageArray();
-		ArrayList<PointDesc> probePts = new ArrayList<PointDesc>();
+		Roi roi = imp.getRoi();
 		Polygon p = roi.getPolygon();
 		PointRoi pRoi=(PointRoi)roi;
 
@@ -121,60 +172,70 @@ public class GeodesicPath_3D implements PlugInFilter {
 			// In the GDT the solid phase is -2, the unaccessed open phase is -1, and the seed points are 0
 			if(val>0)
 			{
-				probePts.add(new PointDesc(p.xpoints[j],p.ypoints[j],pRoi.getPointPosition(j)-1,val));				
+				seedPts.add(new PointDesc(p.xpoints[j],p.ypoints[j],pRoi.getPointPosition(j)-1,val));				
 			}			
 		}
+		return seedPts;
+	}	
 
-		if(probePts.size()>0)
-		{
-//			GDT3D_V6 myGdt = new GDT3D_V6();
-			GDT3D myGdt = new GDT3D();
-			ArrayList<PointDesc>[] geoPaths3D = myGdt.getGeoPaths3D(data,width,height,depth, probePts);
+	//***********************************************************************************************
 
-			//Display the results
-			if(geoPaths3D!=null)
-			{
-				if(useRoiMgr)
-				{
-					RoiManager roiMgr = RoiManager.getRoiManager();
-					if(roiMgr==null)
-					{
-						roiMgr = new RoiManager();
-					}
-					int i=roiMgr.getCount();
-					for(ArrayList<PointDesc> path : geoPaths3D)
-					{
-						PointRoi ptRoi = new PointRoi();
-						ptRoi.setOptions("small");
-						for(PointDesc point : path)
-						{
-							ptRoi.addPoint(point.x,point.y,point.z+1);
-						}
-						roiMgr.addRoi(ptRoi);
-						roiMgr.rename(i, "Path3D_" + (i+1));
-						i++;
-					}				
-				}
+	private ArrayList<PointDesc>[] getGeoPaths3D(ArrayList<PointDesc> seedPts)
+	{
+		int width = imp.getWidth();
+		int height = imp.getHeight();
+		int depth = imp.getNSlices();
+		Object[] data = imp.getStack().getImageArray();
 
-				if(showPaths)
-				{
-					ImagePlus pathImp = IJ.createImage("Path Image",width,height,depth,8);
-					ImageStack pathStk = pathImp.getStack();
-
-					int i=101;
-					for(ArrayList<PointDesc> path : geoPaths3D)
-					{
-						for(PointDesc pl : path)
-						{
-							pathStk.setVoxel(pl.x,pl.y,pl.z, i);
-						}
-						i++;
-						if(i>255) break;
-					}
-					pathImp.setDisplayRange(0, i);
-					pathImp.show();
-				}
-			}
-		}
+		GDT3D myGdt = new GDT3D();
+		ArrayList<PointDesc>[] geoPaths3D = myGdt.getGeoPaths3D(data,width,height,depth, seedPts);
+		return geoPaths3D;
 	}
+
+
+	//***********************************************************************************************
+
+	private void addToRoiManager(ArrayList<PointDesc>[] geoPaths3D)
+	{
+		RoiManager roiMgr = RoiManager.getRoiManager();
+		if(roiMgr==null)
+		{
+			roiMgr = new RoiManager();
+		}
+		int i=roiMgr.getCount();
+		for(ArrayList<PointDesc> path : geoPaths3D)
+		{
+			PointRoi ptRoi = new PointRoi();
+			ptRoi.setOptions("small");
+			for(PointDesc point : path)
+			{
+				ptRoi.addPoint(point.x,point.y,point.z+1);
+			}
+			roiMgr.addRoi(ptRoi);
+			roiMgr.rename(i, "Path3D_" + (i+1));
+			i++;
+		}				
+
+	}
+	//***********************************************************************************************
+
+	private void showPaths(ArrayList<PointDesc>[] geoPaths3D)
+	{
+		ImagePlus pathImp = IJ.createImage("Path Image",imp.getWidth(),imp.getHeight(),imp.getNSlices(),8);
+		ImageStack pathStk = pathImp.getStack();
+
+		int i=101;
+		for(ArrayList<PointDesc> path : geoPaths3D)
+		{
+			for(PointDesc pl : path)
+			{
+				pathStk.setVoxel(pl.x,pl.y,pl.z, i);
+			}
+			i++;
+			if(i>255) break;
+		}
+		pathImp.setDisplayRange(0, i);
+		pathImp.show();		
+	}
+
 }
