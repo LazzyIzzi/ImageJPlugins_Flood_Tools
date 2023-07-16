@@ -388,7 +388,7 @@ public class Geodesic_Transform implements PlugInFilter, DialogListener
 				+ "\nMapping \"Point(s)\" tortuosity takes 2x longer, be patient."
 				+ "\nThe un-mapped component voxel values are set to -2"
 				+ "\nUnreachable mapped voxel values are set to -1.",myFont,Color.BLACK);
-		gd.addHelp("https://lazzyizzi.github.io/Geodesic.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/GeodesicTransform.html");
 		gd.setBackground(myColor);
 		gd.showDialog();
 

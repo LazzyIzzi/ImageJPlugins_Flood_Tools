@@ -106,7 +106,7 @@ public class Flood_Fill_3D implements PlugInFilter, DialogListener {
 		floodValNF = gda.getNumericField(gd, null, "floodVal");
 		
 		gd.addCheckbox("Show Flooded Count", true);
-		gd.addHelp("https://lazzyizzi.github.io/FloodFill.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/FloodFill.html");
 		gd.addDialogListener(this);
 		gd.setBackground(myColor);
 		gd.showDialog();

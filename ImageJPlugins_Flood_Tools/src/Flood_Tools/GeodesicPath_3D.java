@@ -114,6 +114,7 @@ public class GeodesicPath_3D implements PlugInFilter, DialogListener {
 		gd.setInsets(20, 20, 0);
 		gd.addCheckbox("Add Path(s) to Roi Manager", true);
 		addToRoiCBF = gda.getCheckboxField(gd, "addToRoi");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/GeodesicTransform.html");
 		gd.setBackground(myColor);
 		gd.addDialogListener(this);
 		gd.showDialog();

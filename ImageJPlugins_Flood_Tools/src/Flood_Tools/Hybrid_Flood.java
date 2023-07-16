@@ -107,7 +107,7 @@ public class Hybrid_Flood implements PlugInFilter, DialogListener
 		gd.addCheckbox("Show Metrics", dp.showResults);
 		gd.addCheckbox("Create New Image", dp.createNewImage);
 		
-		gd.addHelp("https://lazzyizzi.github.io/HybridFloodFill.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/HybridFloodFill.html");
 		gd.setBackground(myColor);
 		gd.addDialogListener(this);
 		gd.showDialog();

@@ -91,7 +91,7 @@ public class Draw_Sphere implements PlugInFilter, DialogListener
 		gd.addNumericField("Fill Sphere with value", 255, 3);
 		fillValNF = gda.getNumericField(gd, null, "fillVal");
 		
-		gd.addHelp("https://lazzyizzi.github.io/EuclideanSpheres.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/EuclideanSpheres.html");
 		gd.addDialogListener(this);
 		gd.setBackground(myColor);
 		gd.showDialog();

@@ -46,7 +46,7 @@ public class Draw_Overlapping_Spheres implements PlugInFilter, DialogListener{
 		gd.addNumericField("Max Radius in user units", 10, 3);
 		gd.addNumericField("Fill Sphere with value", 255, 3);
 		fillValNF = gda.getNumericField(gd, null, "fillVal");
-		gd.addHelp("https://lazzyizzi.github.io/EuclideanSpheres.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/EuclideanSpheres.html");
 		gd.addRadioButtonGroup("Units", unitChoices, 1, 2, unitChoices[0]);
 		gd.addDialogListener(this);
 		gd.setBackground(myColor);

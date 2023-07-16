@@ -94,7 +94,7 @@ public class Porosity_To_Hybrid implements PlugInFilter {
 		gd.addCheckbox("Create new Image", true);
 		gd.addCheckbox("Show Statistics", true);
 		gd.setBackground(myColor);
-		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/HybridFloodFill.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/PorosityToHybrid.html");
 		gd.showDialog();
 		
 		if(gd.wasCanceled()) return;

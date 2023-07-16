@@ -109,6 +109,7 @@ public class GeodesicPath_2D implements PlugInFilter, DialogListener
 		gd.addCheckbox("Add to image overlay", false);
 		addToOverlayCBF = gda.getCheckboxField(gd, "addToOverlay");
 		gd.addDialogListener(this);
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/GeodesicTransform.html");
 		gd.setBackground(myColor);
 		gd.showDialog();
 

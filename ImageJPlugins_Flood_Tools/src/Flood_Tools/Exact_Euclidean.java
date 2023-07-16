@@ -168,7 +168,7 @@ public class Exact_Euclidean implements PlugInFilter
 		gd.addChoice("Output",destChoices,destChoices[0]);
 		gd.addCheckbox("Use Pixel Sizes", false);
 		gd.addMessage("Notes:\nIn-place calculation converts the binary image to 32-Bit.",myFont,Color.BLACK);
-		gd.addHelp("https://lazzyizzi.github.io/ExactEuclidean.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/ExactEuclidean.html");
 		gd.setBackground(myColor);
 		gd.showDialog();
 

@@ -123,7 +123,7 @@ public class Hybrid_Flood_Search implements PlugInFilter, DialogListener
 		gd.addCheckbox("Save Images", dp.saveImages);
 		gd.addCheckbox("Show breakthrough Image", dp.showBreakImage);
 		gd.addCheckbox("Show Plot", dp.showPlot);
-		gd.addHelp("https://lazzyizzi.github.io/HybridFloodSearchScan.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/HybridFloodSearchScan.html");
 		gd.addDialogListener(this);
 		gd.setBackground(myColor);
 		gd.showDialog();

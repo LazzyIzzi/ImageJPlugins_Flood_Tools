@@ -57,6 +57,7 @@ public class Add_Pore_Liner implements PlugInFilter, DialogListener
 		thicknessNF = gda.getNumericField(gd, null, "thickness");
 		gd.addCheckbox("Create New Image",createNew);
 		gd.addDialogListener(this);
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/AddPoreLiner.html");
 		gd.setBackground(myColor);
 		gd.showDialog();
 		

@@ -125,7 +125,7 @@ public class Hybrid_Flood_Scan implements PlugInFilter, DialogListener
 		scanCntMF = gda.getMessageField(gd, "scanCnt");
 		gd.addCheckbox("Save Images", dp.saveImages);
 		gd.addCheckbox("Show Plot", dp.showPlot);
-		gd.addHelp("https://lazzyizzi.github.io/HybridFloodSearchScan.html");
+		gd.addHelp("https://lazzyizzi.github.io/DistanceMapPages/HybridFloodSearchScan.html");
 		gd.addDialogListener(this);
 		gd.setBackground(myColor);
 		gd.showDialog();
