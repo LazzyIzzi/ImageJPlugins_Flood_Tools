@@ -120,7 +120,7 @@ public class Draw_Overlapping_Spheres implements PlugInFilter, DialogListener{
 					switch(imp.getBitDepth())
 					{
 					case 32:
-						if(fillVal>Float.MAX_VALUE || fillVal<Float.MIN_VALUE)
+						if(fillVal>Float.MAX_VALUE || fillVal < -Float.MIN_VALUE)
 						{
 							fillValNF.getNumericField().setBackground(Color.red);
 							dialogOK=false;								

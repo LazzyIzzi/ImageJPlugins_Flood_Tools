@@ -179,7 +179,7 @@ public class Draw_Sphere implements PlugInFilter, DialogListener
 					else switch(imp.getBitDepth())
 					{
 					case 32:
-						if(fillVal>Float.MAX_VALUE || fillVal <-Float.MAX_VALUE)
+						if(fillVal>Float.MAX_VALUE || fillVal < -Float.MAX_VALUE)
 						{
 							fillValNF.getNumericField().setBackground(Color.red);
 							dialogOK=false;								
